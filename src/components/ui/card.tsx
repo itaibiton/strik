@@ -29,12 +29,21 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
     const baseClassName = cn(variants[variant], className);
 
     if (animated) {
+      const { 
+        onDrag, 
+        onDragStart, 
+        onDragEnd,
+        onAnimationStart,
+        onAnimationEnd,
+        onAnimationIteration,
+        ...restProps 
+      } = props;
       return (
         <motion.div
           ref={ref}
           className={baseClassName}
           {...cardAnimations}
-          {...props}
+          {...restProps}
         />
       )
     }

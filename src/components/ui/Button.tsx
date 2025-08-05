@@ -99,13 +99,22 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     );
 
     if (animated) {
+      const { 
+        onDrag, 
+        onDragStart, 
+        onDragEnd,
+        onAnimationStart,
+        onAnimationEnd,
+        onAnimationIteration,
+        ...restProps 
+      } = props;
       return (
         <motion.button
           className={cn(buttonVariants({ variant, size, className }))}
           ref={ref}
           disabled={disabled || isLoading}
           {...buttonAnimations}
-          {...props}
+          {...restProps}
         >
           {buttonContent}
         </motion.button>

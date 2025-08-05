@@ -72,7 +72,7 @@ export default function HomePage() {
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5, delay: 1.2 }}
       >
-        <ThemeToggle />
+        {/* <ThemeToggle /> */}
       </motion.div>
 
       <div className="w-full max-w-md mx-auto relative z-10">
