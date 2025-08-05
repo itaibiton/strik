@@ -81,6 +81,17 @@ export interface LeaderboardEntry {
   totalGamesPlayed: number;
   winRate: number;
   ranking: number;
+  country?: string;
+  region?: string;
+  gameMode?: 'streak' | 'practice' | 'versus';
+  lastPlayed?: Date;
+}
+
+export interface LeaderboardFilters {
+  timePeriod: 'today' | 'week' | 'month' | 'all-time';
+  gameMode: 'all' | 'streak' | 'practice' | 'versus';
+  region: 'all' | 'local' | string; // 'local' for user's region, or specific country code
+  sortBy: 'streak' | 'winRate' | 'gamesPlayed';
 }
 
 export interface GameSession {
