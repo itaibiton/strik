@@ -11,7 +11,7 @@ import {
   Target,
   Users
 } from 'lucide-react';
-import { LeaderboardFilters } from '@/types';
+import type { LeaderboardFilters } from '@/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/Button';
 

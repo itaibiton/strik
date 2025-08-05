@@ -121,22 +121,16 @@ export const useGameStore = create<GameStore>()(
           showResults: true,
         });
         
-        // Complete game session and update user stats in Convex
+        // Complete game session in Convex (this also updates user stats)
         if (convexClient && state.currentSessionId) {
           try {
-            // Complete the game session
+            // Complete the game session (this automatically updates user stats)
             await convexClient.mutation(api.gameSessions.completeGameSession, {
               sessionId: state.currentSessionId,
               finalScore: state.correctAnswers * 10,
               finalStreak: state.currentStreak,
               questionsAnswered: state.correctAnswers + state.incorrectAnswers,
               correctAnswers: state.correctAnswers,
-            });
-            
-            // Update user game stats
-            await convexClient.mutation(api.users.updateUserGameStats, {
-              score: state.correctAnswers * 10,
-              streak: state.currentStreak,
             });
             
             set({ currentSessionId: null });

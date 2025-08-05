@@ -4,15 +4,15 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Trophy, Medal, Award, Crown, Globe, TrendingUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useMemo } from 'react';
-import { useGameStore } from '@/store/gameStore';
-import { LeaderboardEntry, LeaderboardFilters } from '@/types';
+import { useQuery } from 'convex/react';
+import { api } from '../../../convex/_generated/api';
+import { LeaderboardFilters } from '@/types';
 import { LeaderboardFilters as FiltersComponent } from '@/components/leaderboard/LeaderboardFilters';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/Button';
 
 export default function LeaderboardPage() {
   const router = useRouter();
-  const { bestStreak, totalGamesPlayed, correctAnswers, incorrectAnswers } = useGameStore();
 
   // Filter state
   const [filters, setFilters] = useState<LeaderboardFilters>({
@@ -22,156 +22,60 @@ export default function LeaderboardPage() {
     sortBy: 'streak'
   });
 
-  // Mock user location - in real app, this would come from geolocation or user profile
-  const userCountry = 'US';
-  const userRegion = 'North America';
+  // Get real user data from Convex
+  const currentUserStats = useQuery(api.users.getUserStatsWithWinRate);
+  const userRank = useQuery(api.users.getUserRank, {
+    timePeriod: filters.timePeriod,
+    gameMode: filters.gameMode,
+    sortBy: filters.sortBy,
+    region: filters.region === 'local' ? currentUserStats?.country || 'all' : filters.region,
+  });
+  const leaderboardData = useQuery(api.users.getFilteredLeaderboard, {
+    limit: 50,
+    timePeriod: filters.timePeriod,
+    gameMode: filters.gameMode,
+    sortBy: filters.sortBy,
+    region: filters.region === 'local' ? currentUserStats?.country || 'all' : filters.region,
+  });
 
-  // Mock leaderboard data with enhanced fields
-  const allLeaderboardData: LeaderboardEntry[] = [
-    {
-      userId: 'current-user',
-      username: 'You',
-      bestStreak: bestStreak,
-      totalGamesPlayed: totalGamesPlayed,
-      winRate: totalGamesPlayed > 0 ? Math.round((correctAnswers / (correctAnswers + incorrectAnswers)) * 100) : 0,
-      ranking: 1,
-      country: userCountry,
-      region: userRegion,
-      gameMode: 'streak',
-      lastPlayed: new Date(),
-    },
-    {
-      userId: '1',
-      username: 'FootballMaster',
-      bestStreak: 47,
-      totalGamesPlayed: 156,
-      winRate: 78,
-      ranking: 1,
-      country: 'BR',
-      region: 'South America',
-      gameMode: 'streak',
-      lastPlayed: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-    },
-    {
-      userId: '2',
-      username: 'SoccerPro',
-      bestStreak: 32,
-      totalGamesPlayed: 89,
-      winRate: 85,
-      ranking: 2,
-      country: 'US',
-      region: 'North America',
-      gameMode: 'streak',
-      lastPlayed: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
-    },
-    {
-      userId: '3',
-      username: 'TriviaKing',
-      bestStreak: 28,
-      totalGamesPlayed: 134,
-      winRate: 72,
-      ranking: 3,
-      country: 'GB',
-      region: 'Europe',
-      gameMode: 'practice',
-      lastPlayed: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
-    },
-    {
-      userId: '4',
-      username: 'QuizWhiz',
-      bestStreak: 21,
-      totalGamesPlayed: 67,
-      winRate: 81,
-      ranking: 4,
-      country: 'DE',
-      region: 'Europe',
-      gameMode: 'versus',
-      lastPlayed: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 1 week ago
-    },
-    {
-      userId: '5',
-      username: 'FieldExpert',
-      bestStreak: 19,
-      totalGamesPlayed: 98,
-      winRate: 69,
-      ranking: 5,
-      country: 'FR',
-      region: 'Europe',
-      gameMode: 'streak',
-      lastPlayed: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000), // 2 weeks ago
-    },
-    {
-      userId: '6',
-      username: 'LocalChamp',
-      bestStreak: 25,
-      totalGamesPlayed: 45,
-      winRate: 88,
-      ranking: 6,
-      country: 'US',
-      region: 'North America',
-      gameMode: 'streak',
-      lastPlayed: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6 hours ago
-    },
-  ];
+  // User location from database
+  const userCountry = currentUserStats?.country || 'US';
+  const userRegion = currentUserStats?.region || 'North America';
 
-  // Filter the leaderboard data based on current filters
-  const filteredLeaderboardData = useMemo(() => {
-    let filtered = [...allLeaderboardData];
-
-    // Filter by game mode
-    if (filters.gameMode !== 'all') {
-      filtered = filtered.filter(entry => entry.gameMode === filters.gameMode);
-    }
-
-    // Filter by region
-    if (filters.region === 'local') {
-      filtered = filtered.filter(entry => entry.country === userCountry);
-    } else if (filters.region !== 'all') {
-      filtered = filtered.filter(entry => entry.country === filters.region);
-    }
-
-    // Filter by time period
-    if (filters.timePeriod !== 'all-time') {
-      const now = new Date();
-      let cutoffDate: Date;
+  // Transform Convex data to match expected format
+  const transformedLeaderboardData = useMemo(() => {
+    if (!leaderboardData) return [];
+    
+    return leaderboardData.map((user, index) => {
+      const displayName = user.firstName && user.lastName 
+        ? `${user.firstName} ${user.lastName}`
+        : user.firstName || 'Anonymous Player';
       
-      switch (filters.timePeriod) {
-        case 'today':
-          cutoffDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          break;
-        case 'week':
-          cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          break;
-        case 'month':
-          cutoffDate = new Date(now.getFullYear(), now.getMonth(), 1);
-          break;
-        default:
-          cutoffDate = new Date(0);
-      }
-      
-      filtered = filtered.filter(entry => 
-        entry.lastPlayed && entry.lastPlayed >= cutoffDate
-      );
-    }
-
-    // Sort by selected criteria
-    filtered.sort((a, b) => {
-      switch (filters.sortBy) {
-        case 'winRate':
-          return b.winRate - a.winRate;
-        case 'gamesPlayed':
-          return b.totalGamesPlayed - a.totalGamesPlayed;
-        case 'streak':
-        default:
-          return b.bestStreak - a.bestStreak;
-      }
+      return {
+        userId: user._id,
+        username: displayName,
+        avatar: user.imageUrl,
+        bestStreak: user.bestStreak,
+        totalGamesPlayed: user.totalGamesPlayed,
+        winRate: user.winRate,
+        ranking: user.ranking,
+        country: user.country,
+        region: user.region,
+        gameMode: 'streak' as const, // Default game mode for display
+        lastPlayed: user.lastPlayed ? new Date(user.lastPlayed) : undefined,
+        isCurrentUser: currentUserStats ? user.clerkId === currentUserStats.clerkId : false,
+      };
     });
+  }, [leaderboardData, currentUserStats]);
 
-    // Update rankings
-    return filtered.map((entry, index) => ({ ...entry, ranking: index + 1 }));
-  }, [allLeaderboardData, filters, userCountry]);
-
-  const availableCountries = [...new Set(allLeaderboardData.map(entry => entry.country).filter(Boolean))] as string[];
+  // Data is already filtered and sorted by Convex queries
+  const filteredLeaderboardData = transformedLeaderboardData;
+  
+  // Get available countries from the data
+  const availableCountries = useMemo(() => {
+    if (!leaderboardData) return [];
+    return [...new Set(leaderboardData.map(entry => entry.country).filter(Boolean))] as string[];
+  }, [leaderboardData]);
 
   const getRankIcon = (rank: number) => {
     switch (rank) {
@@ -255,40 +159,112 @@ export default function LeaderboardPage() {
           availableCountries={availableCountries}
         />
 
-        {/* Stats Summary */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="mb-6"
-        >
-          <Card variant="glass" className="border border-white/10">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-xl font-bold gradient-text-primary flex items-center gap-2">
-                <Trophy className="w-5 h-5" />
-                Your Performance
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-6">
+        {/* User Stats Loading or Display */}
+        {currentUserStats === undefined ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="mb-6"
+          >
+            <Card variant="glass" className="border border-white/10">
+              <CardContent className="pt-6">
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-primary mb-1">{bestStreak}</div>
-                  <div className="text-sm text-muted-foreground font-medium">Best Streak</div>
+                  <div className="text-lg text-muted-foreground">Loading your stats...</div>
                 </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ) : currentUserStats === null ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="mb-6"
+          >
+            <Card variant="glass" className="border border-white/10">
+              <CardContent className="pt-6">
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-info mb-1">{totalGamesPlayed}</div>
-                  <div className="text-sm text-muted-foreground font-medium">Games Played</div>
+                  <div className="text-lg text-muted-foreground mb-2">Sign in to view your stats</div>
+                  <p className="text-sm text-muted-foreground">
+                    Create an account to track your progress and compete on the leaderboard!
+                  </p>
                 </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-warning mb-1">
-                    {totalGamesPlayed > 0 ? Math.round((correctAnswers / (correctAnswers + incorrectAnswers)) * 100) : 0}%
+              </CardContent>
+            </Card>
+          </motion.div>
+        ) : (
+          <>
+            {/* User Ranking Display */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="mb-6"
+            >
+              <Card variant="glass" className="border border-white/10">
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    {userRank === undefined ? (
+                      <div className="text-lg text-muted-foreground">Loading your rank...</div>
+                    ) : userRank && userRank.rank ? (
+                      <div className="text-2xl font-bold gradient-text-primary mb-2">
+                        Your Rank: #{userRank.rank} out of {userRank.totalPlayers} players
+                      </div>
+                    ) : (
+                      <>
+                        <div className="text-2xl font-bold text-muted-foreground mb-2">
+                          Unranked
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {currentUserStats.totalGamesPlayed === 0 
+                            ? "Play your first game to get ranked!" 
+                            : "Complete more games to improve your ranking!"}
+                        </p>
+                      </>
+                    )}
                   </div>
-                  <div className="text-sm text-muted-foreground font-medium">Accuracy</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Stats Summary */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="mb-6"
+            >
+              <Card variant="glass" className="border border-white/10">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-xl font-bold gradient-text-primary flex items-center gap-2">
+                    <Trophy className="w-5 h-5" />
+                    Your Performance
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 gap-6">
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-primary mb-1">{currentUserStats.bestStreak}</div>
+                      <div className="text-sm text-muted-foreground font-medium">Best Streak</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-info mb-1">{currentUserStats.totalGamesPlayed}</div>
+                      <div className="text-sm text-muted-foreground font-medium">Games Played</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-warning mb-1">
+                        {currentUserStats.winRate}%
+                      </div>
+                      <div className="text-sm text-muted-foreground font-medium">Accuracy</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </>
+        )}
+
 
         {/* Leaderboard */}
         <motion.div
@@ -319,7 +295,12 @@ export default function LeaderboardPage() {
               )}
             </CardHeader>
             <CardContent className="p-0">
-              {filteredLeaderboardData.length === 0 ? (
+              {!leaderboardData ? (
+                <div className="p-8 text-center text-muted-foreground">
+                  <Trophy className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg font-medium mb-2">Loading leaderboard...</p>
+                </div>
+              ) : filteredLeaderboardData.length === 0 ? (
                 <div className="p-8 text-center text-muted-foreground">
                   <Trophy className="w-12 h-12 mx-auto mb-4 opacity-50" />
                   <p className="text-lg font-medium mb-2">No players found</p>
@@ -331,7 +312,7 @@ export default function LeaderboardPage() {
                     <motion.div
                       key={entry.userId}
                       className={`p-4 flex items-center justify-between hover:bg-white/5 transition-colors duration-200 ${
-                        entry.userId === 'current-user' ? 'bg-primary/10 border-l-4 border-primary' : ''
+                        entry.isCurrentUser ? 'bg-primary/10 border-l-4 border-primary' : ''
                       }`}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
@@ -349,7 +330,7 @@ export default function LeaderboardPage() {
                         {/* User Info */}
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <h3 className={`font-semibold ${entry.userId === 'current-user' ? 'text-primary' : 'text-foreground'}`}>
+                            <h3 className={`font-semibold ${entry.isCurrentUser ? 'text-primary' : 'text-foreground'}`}>
                               {entry.username}
                             </h3>
                             {entry.country && (
@@ -357,7 +338,7 @@ export default function LeaderboardPage() {
                                 {getCountryFlag(entry.country)}
                               </span>
                             )}
-                            {entry.userId === 'current-user' && (
+                            {entry.isCurrentUser && (
                               <span className="px-2 py-1 bg-primary text-primary-foreground text-xs rounded-full font-medium">
                                 You
                               </span>
