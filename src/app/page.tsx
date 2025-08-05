@@ -9,9 +9,13 @@ import { useEffect } from "react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useConvex } from 'convex/react';
+import { useAuth } from '@clerk/nextjs';
 
 export default function HomePage() {
   const router = useRouter();
+  const convex = useConvex();
+  const { isSignedIn } = useAuth();
   const { bestStreak, totalGamesPlayed, setAvailableQuestions, startGame } =
     useGameStore();
 
@@ -20,8 +24,8 @@ export default function HomePage() {
     setAvailableQuestions(sampleQuestions);
   }, [setAvailableQuestions]);
 
-  const handleStartGame = () => {
-    startGame("streak");
+  const handleStartGame = async () => {
+    await startGame("streak", isSignedIn ? convex : undefined);
     router.push("/game");
   };
 

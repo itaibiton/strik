@@ -9,9 +9,13 @@ import { Timer } from '@/components/game/Timer';
 import { StreakCounter } from '@/components/game/StreakCounter';
 import { QuestionCard } from '@/components/game/QuestionCard';
 import { GameOverScreen } from '@/components/game/GameOverScreen';
+import { useConvex } from 'convex/react';
+import { useAuth } from '@clerk/nextjs';
 
 export default function GamePage() {
   const router = useRouter();
+  const convex = useConvex();
+  const { isSignedIn } = useAuth();
   const {
     isPlaying,
     currentQuestion,
@@ -38,20 +42,12 @@ export default function GamePage() {
   // Initialize game if not already playing
   useEffect(() => {
     if (!isPlaying && !showResults) {
-      startGame('streak');
+      // Pass convex client if user is signed in
+      startGame('streak', isSignedIn ? convex : undefined);
     }
-  }, [isPlaying, showResults, startGame]);
+  }, [isPlaying, showResults, startGame, isSignedIn, convex]);
 
-  // Timer effect
-  useEffect(() => {
-    if (!isPlaying || !currentQuestion) return;
-
-    const timer = setInterval(() => {
-      updateTimer(timeRemaining - 1);
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [isPlaying, currentQuestion, timeRemaining, updateTimer]);
+  // Timer logic is now handled by the Timer component itself
 
   const handleAnswer = (answer: string) => {
     const isCorrect = submitAnswer(answer);
@@ -73,12 +69,12 @@ export default function GamePage() {
   };
 
   const handleTimeUp = () => {
-    endGame();
+    endGame(isSignedIn ? convex : undefined);
   };
 
   const handlePlayAgain = () => {
     setShowResults(false);
-    startGame('streak');
+    startGame('streak', isSignedIn ? convex : undefined);
   };
 
   const handleGoHome = () => {

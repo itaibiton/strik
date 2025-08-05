@@ -1,11 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { GameState, Question, User, UserStats, Achievement } from '@/types';
+import { api } from '../../convex/_generated/api';
+import { Id } from '../../convex/_generated/dataModel';
 
 interface GameStore extends GameState {
   // Game actions
-  startGame: (mode?: 'streak' | 'versus' | 'practice') => void;
-  endGame: () => void;
+  startGame: (mode?: 'streak' | 'versus' | 'practice', convexClient?: any) => Promise<void>;
+  endGame: (convexClient?: any) => Promise<void>;
   nextQuestion: () => void;
   submitAnswer: (answer: string) => boolean;
   updateTimer: (time: number) => void;
@@ -30,6 +32,10 @@ interface GameStore extends GameState {
   usedQuestionIds: string[];
   addUsedQuestion: (questionId: string) => void;
   clearUsedQuestions: () => void;
+  
+  // Convex session tracking
+  currentSessionId: Id<'gameSessions'> | null;
+  setCurrentSessionId: (id: Id<'gameSessions'> | null) => void;
 }
 
 export const useGameStore = create<GameStore>()(
@@ -58,8 +64,11 @@ export const useGameStore = create<GameStore>()(
       availableQuestions: [],
       usedQuestionIds: [],
       
+      // Convex session tracking
+      currentSessionId: null,
+      
       // Game actions
-      startGame: (mode = 'streak') => {
+      startGame: async (mode = 'streak', convexClient?) => {
         const state = get();
         const availableQuestions = state.availableQuestions.filter(
           q => !state.usedQuestionIds.includes(q.id)
@@ -77,16 +86,30 @@ export const useGameStore = create<GameStore>()(
           gameMode: mode,
           currentQuestion: nextQuestion,
           currentStreak: 0,
+          correctAnswers: 0,
+          incorrectAnswers: 0,
           timeRemaining: nextQuestion?.timeLimit || 30,
           showResults: false,
         });
+        
+        // Create game session in Convex if client is provided
+        if (convexClient) {
+          try {
+            const sessionId = await convexClient.mutation(api.gameSessions.startGameSession, {
+              gameMode: mode,
+            });
+            set({ currentSessionId: sessionId });
+          } catch (error) {
+            console.error('Failed to create game session:', error);
+          }
+        }
         
         if (nextQuestion) {
           get().addUsedQuestion(nextQuestion.id);
         }
       },
       
-      endGame: () => {
+      endGame: async (convexClient?) => {
         const state = get();
         const newBestStreak = Math.max(state.currentStreak, state.bestStreak);
         
@@ -98,7 +121,31 @@ export const useGameStore = create<GameStore>()(
           showResults: true,
         });
         
-        // Update user stats if user exists
+        // Complete game session and update user stats in Convex
+        if (convexClient && state.currentSessionId) {
+          try {
+            // Complete the game session
+            await convexClient.mutation(api.gameSessions.completeGameSession, {
+              sessionId: state.currentSessionId,
+              finalScore: state.correctAnswers * 10,
+              finalStreak: state.currentStreak,
+              questionsAnswered: state.correctAnswers + state.incorrectAnswers,
+              correctAnswers: state.correctAnswers,
+            });
+            
+            // Update user game stats
+            await convexClient.mutation(api.users.updateUserGameStats, {
+              score: state.correctAnswers * 10,
+              streak: state.currentStreak,
+            });
+            
+            set({ currentSessionId: null });
+          } catch (error) {
+            console.error('Failed to complete game session:', error);
+          }
+        }
+        
+        // Update local user stats if user exists
         if (state.user) {
           get().updateUserStats({
             totalGamesPlayed: state.totalGamesPlayed + 1,
@@ -238,6 +285,10 @@ export const useGameStore = create<GameStore>()(
       
       clearUsedQuestions: () => {
         set({ usedQuestionIds: [] });
+      },
+      
+      setCurrentSessionId: (id: Id<'gameSessions'> | null) => {
+        set({ currentSessionId: id });
       },
     }),
     {

@@ -25,13 +25,19 @@ export function Timer({
     setDisplayTime(timeRemaining);
   }, [timeRemaining]);
 
+  // Handle time up callback with useEffect to avoid setState during render
+  useEffect(() => {
+    if (displayTime <= 0 && isActive) {
+      onTimeUp();
+    }
+  }, [displayTime, isActive, onTimeUp]);
+
   useEffect(() => {
     if (!isActive) return;
     
     const interval = setInterval(() => {
       setDisplayTime((prev) => {
         if (prev <= 1) {
-          onTimeUp();
           return 0;
         }
         return prev - 1;
@@ -39,7 +45,7 @@ export function Timer({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isActive, onTimeUp]);
+  }, [isActive]);
 
   const percentage = (displayTime / totalTime) * 100;
   const isWarning = displayTime <= 5;

@@ -10,7 +10,7 @@ import {
 import { useUserProfile } from '@/hooks/useUserProfile'
 
 export function AuthHeader() {
-  const { displayName, bestStreak, totalGamesPlayed, isSignedIn } = useUserProfile()
+  const { displayName, bestStreak, totalGamesPlayed, isSignedIn, isLoadingStats } = useUserProfile()
 
   return (
     <header className="flex justify-between items-center p-4 h-16 border-b border-border/10">
@@ -18,9 +18,21 @@ export function AuthHeader() {
         <h1 className="text-xl font-bold text-primary">Strik</h1>
         {isSignedIn && (
           <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground">
-            <span>Best Streak: {bestStreak}</span>
+            <span>
+              Best Streak: {isLoadingStats ? (
+                <span className="inline-block w-6 h-3 bg-muted animate-pulse rounded" />
+              ) : (
+                bestStreak
+              )}
+            </span>
             <span>•</span>
-            <span>Games: {totalGamesPlayed}</span>
+            <span>
+              Games: {isLoadingStats ? (
+                <span className="inline-block w-6 h-3 bg-muted animate-pulse rounded" />
+              ) : (
+                totalGamesPlayed
+              )}
+            </span>
           </div>
         )}
       </div>
@@ -42,7 +54,9 @@ export function AuthHeader() {
         <SignedIn>
           <div className="flex items-center gap-3">
             <div className="hidden sm:block text-sm text-foreground">
-              Welcome, {displayName}!
+              Welcome, {displayName || (
+                <span className="inline-block w-16 h-3 bg-muted animate-pulse rounded" />
+              )}!
             </div>
             <UserButton 
               appearance={{
